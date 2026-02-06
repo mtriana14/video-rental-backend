@@ -11,22 +11,22 @@ const SCHEMA_PATH = join(__dirname, 'database/schema.sql');
 
 const db = new Database(DB_PATH);
 
-console.log('🌱 Iniciando seeders...\n');
+console.log(' Iniciando seeders...\n');
 
 // Crear/actualizar schema primero
-console.log('📋 Creando tablas...');
+console.log(' Creando tablas...');
 const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
 db.exec(schema);
-console.log('✅ Tablas creadas\n');
+console.log(' Tablas creadas\n');
 
 // Limpiar tablas
-console.log('🗑️  Limpiando datos existentes...');
+console.log('  Limpiando datos existentes...');
 db.exec('DELETE FROM rentals');
 db.exec('DELETE FROM film_actor');
 db.exec('DELETE FROM customers');
 db.exec('DELETE FROM actors');
 db.exec('DELETE FROM films');
-console.log('✅ Datos limpiados\n');
+console.log(' Datos limpiados\n');
 
 // Insertar películas
 console.log('📝 Insertando películas...');
@@ -105,10 +105,10 @@ const insertFilms = db.transaction(() => {
 });
 
 insertFilms();
-console.log(`✅ ${films.length} películas insertadas`);
+console.log(` ${films.length} películas insertadas`);
 
 // Insertar actores
-console.log('📝 Insertando actores...');
+console.log(' Insertando actores...');
 const insertActor = db.prepare('INSERT INTO actors (first_name, last_name, birth_date) VALUES (?, ?, ?)');
 
 const actors = [
@@ -136,10 +136,10 @@ const insertActors = db.transaction(() => {
 });
 
 insertActors();
-console.log(`✅ ${actors.length} actores insertados`);
+console.log(`${actors.length} actores insertados`);
 
 // Insertar relaciones película-actor
-console.log('📝 Insertando relaciones película-actor...');
+console.log(' Insertando relaciones película-actor...');
 const insertFA = db.prepare('INSERT INTO film_actor (film_id, actor_id) VALUES (?, ?)');
 
 const filmActors = [
@@ -155,10 +155,10 @@ const insertFAs = db.transaction(() => {
 });
 
 insertFAs();
-console.log(`✅ ${filmActors.length} relaciones insertadas`);
+console.log(` ${filmActors.length} relaciones insertadas`);
 
 // Insertar clientes
-console.log('📝 Insertando clientes...');
+console.log(' Insertando clientes...');
 const insertCustomer = db.prepare('INSERT INTO customers (first_name, last_name, email, phone, address) VALUES (?, ?, ?, ?, ?)');
 
 const customers = [
@@ -191,10 +191,10 @@ const insertCustomers = db.transaction(() => {
 });
 
 insertCustomers();
-console.log(`✅ ${customers.length} clientes insertados`);
+console.log(` ${customers.length} clientes insertados`);
 
 // Insertar rentas
-console.log('📝 Insertando rentas...');
+console.log(' Insertando rentas...');
 const insertRental = db.prepare('INSERT INTO rentals (customer_id, film_id, status, rental_date, return_date) VALUES (?, ?, ?, ?, ?)');
 
 const rentals = [
@@ -215,7 +215,7 @@ const insertRentals = db.transaction(() => {
 });
 
 insertRentals();
-console.log(`✅ ${rentals.length} rentas insertadas`);
+console.log(` ${rentals.length} rentas insertadas`);
 
 // Verificar
 const counts = {
@@ -225,11 +225,11 @@ const counts = {
   rentals: db.prepare('SELECT COUNT(*) as count FROM rentals').get().count
 };
 
-console.log('\n📊 Resumen:');
-console.log(`   🎬 Películas: ${counts.films}`);
-console.log(`   🎭 Actores: ${counts.actors}`);
-console.log(`   👥 Clientes: ${counts.customers}`);
-console.log(`   📼 Rentas: ${counts.rentals}`);
-console.log('\n✨ Seeders completados!\n');
+console.log(' Resumen:');
+console.log(`  Películas: ${counts.films}`);
+console.log(`  Actores: ${counts.actors}`);
+console.log(`  Clientes: ${counts.customers}`);
+console.log(`  Rentas: ${counts.rentals}`);
+console.log(' Seeders completados!\n');
 
 db.close();

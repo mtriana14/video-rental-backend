@@ -4,10 +4,11 @@ import dotenv from 'dotenv';
 import db from './config/database.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
-// Importar rutas
+// Import routes
 import customerRoutes from './routes/customerRoutes.js';
 import filmRoutes from './routes/filmRoutes.js';
 import actorRoutes from './routes/actorRoutes.js';
+import rentalRoutes from './routes/rentalRoutes.js';
 
 dotenv.config();
 
@@ -19,7 +20,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rutas
+// Ignore favicon
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// Routes
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Video Rental Store API - TypeScript',
@@ -29,25 +33,25 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
-app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use('/api/customers', customerRoutes);
 app.use('/api/films', filmRoutes);
 app.use('/api/actors', actorRoutes);
+app.use('/api/rentals', rentalRoutes);
 
-// Manejo de errores
+// Error handling
 app.use(notFound);
 app.use(errorHandler);
 
-// Iniciar servidor
+// Start server
 const startServer = async (): Promise<void> => {
   try {
     db.connect();
     app.listen(PORT, () => {
-      console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-      console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+      console.log(` Server running on http://localhost:${PORT}`);
+      console.log(` Environment: ${process.env.NODE_ENV}`);
     });
   } catch (error) {
-    console.error('Error al iniciar el servidor:', error);
+    console.error('Error starting server:', error);
     process.exit(1);
   }
 };
