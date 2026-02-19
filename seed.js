@@ -46,7 +46,7 @@ const films = [
     'The Godfather', 
     'The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son.', 
     1972, 4.99, 175, 'R', 'Crime', 4, 312,
-    'https://m.media-amazon.com/images/M/MV5BYTJkNGQyZDgtZDQ0NC00MDM0LWEzZWQtYzUzZDEwMDljZWNjXkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg'
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT8F9hpABISwNl4sXh8a2lpL-EoQ7EUkDYicQ&s'
   ],
   [
     'The Dark Knight', 
@@ -82,7 +82,7 @@ const films = [
     'Goodfellas', 
     'The story of Henry Hill and his life in the mob, covering his relationship with his wife Karen Hill and his mob partners.', 
     1990, 3.99, 146, 'R', 'Crime', 3, 267,
-    'https://m.media-amazon.com/images/M/MV5BY2NkZjEzMDgtN2RjYy00YzM1LWI4ZmQtMjIwYjFjNmI3ZGEwXkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg'
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRv8vWAYlcIjedSW900L6rttnJrZ3XmR_qBRA&s'
   ],
   [
     'Interstellar', 
@@ -94,7 +94,7 @@ const films = [
     'The Silence of the Lambs', 
     'A young FBI cadet must receive the help of an incarcerated and manipulative cannibal killer to help catch another serial killer.', 
     1991, 3.99, 118, 'R', 'Thriller', 4, 289,
-    'https://m.media-amazon.com/images/M/MV5BNjNhZTk0ZmEtNjJhMi00YzFlLWE1MmEtYzM1M2ZmMGMwMTU4XkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg'
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQTA0riD_c5HzEmIZg0ij29P-jhWjkYkEblcg&s'
   ]
 ];
 
@@ -109,24 +109,24 @@ console.log(` ${films.length} películas insertadas`);
 
 // Insertar actores
 console.log(' Insertando actores...');
-const insertActor = db.prepare('INSERT INTO actors (first_name, last_name, birth_date) VALUES (?, ?, ?)');
+const insertActor = db.prepare('INSERT INTO actors (first_name, last_name, birth_date , image_url) VALUES (?, ?, ?, ?)');
 
 const actors = [
-  ['Tim', 'Robbins', '1958-10-16'],
-  ['Morgan', 'Freeman', '1937-06-01'],
-  ['Marlon', 'Brando', '1924-04-03'],
-  ['Al', 'Pacino', '1940-04-25'],
-  ['Christian', 'Bale', '1974-01-30'],
-  ['Heath', 'Ledger', '1979-04-04'],
-  ['John', 'Travolta', '1954-02-18'],
-  ['Samuel L.', 'Jackson', '1948-12-21'],
-  ['Tom', 'Hanks', '1956-07-09'],
-  ['Leonardo', 'DiCaprio', '1974-11-11'],
-  ['Keanu', 'Reeves', '1964-09-02'],
-  ['Robert', 'De Niro', '1943-08-17'],
-  ['Matthew', 'McConaughey', '1969-11-04'],
-  ['Jodie', 'Foster', '1962-11-19'],
-  ['Anthony', 'Hopkins', '1937-12-31']
+  ['Tim', 'Robbins', '1958-10-16', 'https://m.media-amazon.com/images/M/MV5BMTI1OTYxNzAxOF5BMl5BanBnXkFtZTYwNTE5ODI4._V1_FMjpg_UX1000_.jpg'],
+  ['Morgan', 'Freeman', '1937-06-01', 'https://m.media-amazon.com/images/M/MV5BMTc0MDMyMzI2OF5BMl5BanBnXkFtZTcwMzM2OTk1MQ@@._V1_FMjpg_UX1000_.jpg'],
+  ['Marlon', 'Brando', '1924-04-03', 'https://m.media-amazon.com/images/M/MV5BMTg3MDYyMDE5OF5BMl5BanBnXkFtZTcwNjgyNTEzNA@@._V1_FMjpg_UX1000_.jpg'],
+  ['Al', 'Pacino', '1940-04-25', 'https://m.media-amazon.com/images/M/MV5BMTQzMzg1ODAyNl5BMl5BanBnXkFtZTYwMjAxODQ1._V1_FMjpg_UX1000_.jpg'],
+  ['Christian', 'Bale', '1974-01-30', 'https://m.media-amazon.com/images/M/MV5BMTkxMzk4MjQ4MF5BMl5BanBnXkFtZTcwMzExODQxOA@@._V1_FMjpg_UX1000_.jpg'],
+  ['Heath', 'Ledger', '1979-04-04', 'https://m.media-amazon.com/images/M/MV5BMTI2NTY0NzA4MF5BMl5BanBnXkFtZTYwMjE1MDE0._V1_FMjpg_UX1000_.jpg'],
+  ['John', 'Travolta', '1954-02-18', 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/John_Travolta_Deauville_2013_2.jpg/250px-John_Travolta_Deauville_2013_2.jpg'],
+  ['Samuel L.', 'Jackson', '1948-12-21', 'https://m.media-amazon.com/images/M/MV5BMTQ1NTQwMTYxNl5BMl5BanBnXkFtZTYwMjA1MzY1._V1_FMjpg_UX1000_.jpg'],
+  ['Tom', 'Hanks', '1956-07-09', 'https://m.media-amazon.com/images/M/MV5BMTQ2MjMwNDA3Nl5BMl5BanBnXkFtZTcwMTA2NDY3NQ@@._V1_FMjpg_UX1000_.jpg'],
+  ['Leonardo', 'DiCaprio', '1974-11-11', 'https://m.media-amazon.com/images/M/MV5BMjI0MTg3MzI0M15BMl5BanBnXkFtZTcwMzQyODU2Mw@@._V1_FMjpg_UX1000_.jpg'],
+  ['Keanu', 'Reeves', '1964-09-02', 'https://m.media-amazon.com/images/M/MV5BNjJhMDk0ZTEtZjdhNy00NGYyLTg1YTQtNmRlZTRjNjdlNzJmXkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg'],
+  ['Robert', 'De Niro', '1943-08-17', 'https://m.media-amazon.com/images/M/MV5BMjAwNDU3MzcyOV5BMl5BanBnXkFtZTcwMjc0MTIxMw@@._V1_FMjpg_UX1000_.jpg'],
+  ['Matthew', 'McConaughey', '1969-11-04', 'https://m.media-amazon.com/images/M/MV5BMTg0MDc3ODUwOV5BMl5BanBnXkFtZTcwMTk2NjY4Nw@@._V1_FMjpg_UX1000_.jpg'],
+  ['Jodie', 'Foster', '1962-11-19', 'https://m.media-amazon.com/images/M/MV5BNTc0Nzk3MzEzMV5BMl5BanBnXkFtZTcwMTkwODM1Mw@@._V1_FMjpg_UX1000_.jpg'],
+  ['Anthony', 'Hopkins', '1937-12-31', 'https://m.media-amazon.com/images/M/MV5BMTc0NjczNDc1MV5BMl5BanBnXkFtZTYwMDU0Mjg1._V1_FMjpg_UX1000_.jpg']
 ];
 
 const insertActors = db.transaction(() => {

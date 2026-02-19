@@ -1,57 +1,29 @@
-import Database from 'better-sqlite3';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import fs from 'fs';
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+dotenv.config();
 
-const DB_PATH = process.env.DB_PATH || join(__dirname, '../../database/video_rental.db');
-const SCHEMA_PATH = join(__dirname, '../../database/schema.sql');
+const pool = mysql.createPool({
+  host:     process.env.DB_HOST     || 'localhost',
+  port:     Number(process.env.DB_PORT) || 3306,
+  user:     process.env.DB_USER     || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME     || 'sakila',
+  waitForConnections: true,
+  connectionLimit: 10,
+});
 
-class DatabaseManager {
-  private db: Database.Database | null = null;
-
-  connect(): void {
-    try {
-      this.db = new Database(DB_PATH);
-      console.log('✅ Conectado a SQLite');
-      this.initializeSchema();
-    } catch (error) {
-      console.error('Error al conectar con la base de datos:', error);
-      throw error;
-    }
-  }
-
-  private initializeSchema(): void {
-    if (!this.db) {
-      throw new Error('Database not connected');
-    }
-
-    try {
-      const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
-      this.db.exec(schema);
-      console.log('✅ Schema inicializado correctamente');
-    } catch (error) {
-      console.error('Error al inicializar schema:', error);
-      throw error;
-    }
-  }
-
-  getDatabase(): Database.Database {
-    if (!this.db) {
-      throw new Error('Database not connected. Call connect() first.');
-    }
-    return this.db;
-  }
-
-  close(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-      console.log('✅ Conexión a la base de datos cerrada');
-    }
+// Verificar conexión al arrancar
+async function connect() {
+  try {
+    const conn = await pool.getConnection();
+     
+    conn.release();
+  } catch (error) {
+    console.error('❌ Error conectando a MySQL:', error);
+    process.exit(1);
   }
 }
 
-export default new DatabaseManager();
+export { pool, connect };
+export default { connect };

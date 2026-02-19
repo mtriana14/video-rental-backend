@@ -1,9 +1,16 @@
-import express from 'express';
-import { returnFilm } from '../controllers/rentalController.js';
+import { Router } from 'express';
+import {
+  getAllRentals,
+  getRentalById,
+  getCustomerRentals,
+  returnFilm
+} from '../controllers/rentalController.js';
 
-const router = express.Router();
+const router = Router();
 
-// PUT /api/rentals/:id/return - Return a rented film
-router.put('/:id/return', returnFilm);
+router.get('/', getAllRentals);
+router.get('/customer/:customerId', getCustomerRentals);
+router.get('/:id', getRentalById);
+router.patch('/:id/return', returnFilm);
 
 export default router;

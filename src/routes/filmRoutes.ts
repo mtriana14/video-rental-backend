@@ -1,27 +1,18 @@
-import express from 'express';
+import { Router } from 'express';
 import {
-  getAllFilms,
   getTopFilms,
+  getAllFilms,
   searchFilms,
   getFilmById,
   rentFilm
 } from '../controllers/filmController.js';
 
-const router = express.Router();
+const router = Router();
 
-// GET /api/films/top - Get top 5 most rented films
-router.get('/top', getTopFilms);
-
-// GET /api/films/search?search=...&type=... - Search films
+router.get('/top5', getTopFilms);
 router.get('/search', searchFilms);
-
-// GET /api/films/:id - Get film by ID with actors
-router.get('/:id', getFilmById);
-
-// GET /api/films - Get all films
 router.get('/', getAllFilms);
-
-// POST /api/films/rent - Rent a film
-router.post('/rent', rentFilm);
+router.get('/:id', getFilmById);
+router.post('/:id/rent', rentFilm);
 
 export default router;

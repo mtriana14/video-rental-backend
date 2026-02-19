@@ -9,15 +9,16 @@ export interface Film {
   genre?: string;
   rental_count?: number;
   available_copies?: number;
-  image_url?: string;  // NUEVO CAMPO
+  image_url?: string;   
   created_at?: string;
 }
 
 export interface Actor {
-  actor_id?: number;
+  actor_id: number;
   first_name: string;
   last_name: string;
   birth_date?: string;
+  image_url?: string;  
   created_at?: string;
 }
 

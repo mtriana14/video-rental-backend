@@ -1,226 +1,355 @@
-import { Request, Response, NextFunction } from 'express';
-import db from '../config/database.js';
-import { Film, Actor } from '../types/index.js';
+import { Request, Response, NextFunction } from "express";
+import { pool } from "../config/database.js";
+import { getFilmPoster } from "../services/tmdbService.js";
 
-// Get top 5 most rented films
+const imgDefault = "https://www.shutterstock.com/image-vector/coming-soon-text-electric-bulbs-600nw-2146759349.jpg";
+function parseFilm(f: any) {
+  return {
+    ...f,
+    rental_rate: Number(f.rental_rate),
+    replacement_cost: Number(f.replacement_cost),
+    length: Number(f.length),
+    release_year: Number(f.release_year),
+    rental_count: Number(f.rental_count ?? 0),
+    total_rentals: Number(f.total_rentals ?? 0),
+    total_copies: Number(f.total_copies ?? 0),
+    rented_copies: Number(f.rented_copies ?? 0),
+  };
+}
+
+// GET /api/films/top5
 export const getTopFilms = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
-    const database = db.getDatabase();
-    
-    const topFilms = database
-      .prepare(
-        `SELECT * FROM films 
-         ORDER BY rental_count DESC 
-         LIMIT 5`
-      )
-      .all() as Film[];
+    const [films] = await pool.query(`
+      SELECT 
+        f.film_id,
+        f.title,
+        f.description,
+        f.release_year,
+        f.rental_rate,
+        f.length,
+        f.rating,
+        c.name AS category,
+        COUNT(r.rental_id) AS rental_count
+      FROM film f
+      LEFT JOIN inventory i ON f.film_id = i.film_id
+      LEFT JOIN rental r ON i.inventory_id = r.inventory_id
+      LEFT JOIN film_category fc ON f.film_id = fc.film_id
+      LEFT JOIN category c ON fc.category_id = c.category_id
+      GROUP BY f.film_id
+      ORDER BY rental_count DESC
+      LIMIT 5
+    `);
+
+    console.log("Films encontrados:", (films as any[]).length);
+
+    const filmsWithImages = await Promise.all(
+      (films as any[]).map(async (f) => {
+        let imageUrl: string | null = null;
+
+        try {
+          imageUrl = await getFilmPoster(f.title) ?? null;
+        } catch (err) {
+          console.error("TMDB error:", err);
+        }
+
+        return {
+          ...parseFilm(f),
+          image_url:
+            imageUrl ??
+            imgDefault,
+        };
+      }),
+    );
 
     res.json({
       success: true,
-      data: topFilms
+      count: filmsWithImages.length,
+      data: filmsWithImages,
     });
   } catch (error) {
+    console.error("Error en getTopFilms:", error);
     next(error);
   }
 };
 
-// Get all films
+// GET /api/films
 export const getAllFilms = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
-    const database = db.getDatabase();
-    
-    const films = database
-      .prepare('SELECT * FROM films ORDER BY title ASC')
-      .all() as Film[];
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = (page - 1) * limit;
+
+    const [[{ total }]] = (await pool.query(
+      "SELECT COUNT(*) as total FROM film",
+    )) as any;
+
+    const [films] = await pool.query(
+      `
+      SELECT 
+        f.film_id, f.title, f.description, f.release_year,
+        f.rental_rate, f.rental_duration, f.length,
+        f.rating, f.replacement_cost,
+        c.name AS category
+      FROM film f
+      LEFT JOIN film_category fc ON f.film_id = fc.film_id
+      LEFT JOIN category c ON fc.category_id = c.category_id
+      ORDER BY f.title ASC
+      LIMIT ? OFFSET ?
+    `,
+      [limit, offset],
+    );
+
+    console.log("Films encontrados:", (films as any[]).length);
+
+    const filmsWithImages = await Promise.all(
+      (films as any[]).map(async (f) => {
+        let imageUrl: string | null = null;
+
+        try {
+          imageUrl = await getFilmPoster(f.title) ?? null;
+        } catch (err) {
+          console.error("TMDB error:", err);
+        }
+
+        return {
+          ...parseFilm(f),
+          image_url:
+            imageUrl ??
+             imgDefault,
+        };
+      }),
+    );
 
     res.json({
       success: true,
-      data: films
+      data: filmsWithImages,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
+    console.error("Error en getAllFilms:", error);
     next(error);
   }
 };
 
-// Search films by title, actor name, or genre
+// GET /api/films/search?search=&type=title|actor|genre
 export const searchFilms = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { search, type } = req.query;
 
     if (!search) {
-      res.status(400).json({ success: false, error: 'Search term required' });
+      res.status(400).json({ success: false, error: "Search term required" });
       return;
     }
 
-    const database = db.getDatabase();
-    const searchTerm = `%${search}%`;
-    let films: Film[] = [];
+    const term = `%${search}%`;
+    let films;
 
-    if (type === 'actor') {
-      // Search by actor name
-      films = database
-        .prepare(
-          `SELECT DISTINCT f.* FROM films f
-           JOIN film_actor fa ON f.film_id = fa.film_id
-           JOIN actors a ON fa.actor_id = a.actor_id
-           WHERE a.first_name LIKE ? OR a.last_name LIKE ?
-           ORDER BY f.title ASC`
-        )
-        .all(searchTerm, searchTerm) as Film[];
-    } else if (type === 'genre') {
-      // Search by genre
-      films = database
-        .prepare(
-          `SELECT * FROM films 
-           WHERE genre LIKE ?
-           ORDER BY title ASC`
-        )
-        .all(searchTerm) as Film[];
+    if (type === "actor") {
+      [films] = await pool.query(
+        `
+        SELECT DISTINCT f.film_id, f.title, f.description, f.release_year,
+          f.rental_rate, f.length, f.rating, c.name AS category
+        FROM film f
+        JOIN film_actor fa ON f.film_id = fa.film_id
+        JOIN actor a ON fa.actor_id = a.actor_id
+        LEFT JOIN film_category fc ON f.film_id = fc.film_id
+        LEFT JOIN category c ON fc.category_id = c.category_id
+        WHERE a.first_name LIKE ? OR a.last_name LIKE ?
+        ORDER BY f.title ASC
+      `,
+        [term, term],
+      );
+    } else if (type === "genre") {
+      [films] = await pool.query(
+        `
+        SELECT DISTINCT f.film_id, f.title, f.description, f.release_year,
+          f.rental_rate, f.length, f.rating, c.name AS category
+        FROM film f
+        LEFT JOIN film_category fc ON f.film_id = fc.film_id
+        LEFT JOIN category c ON fc.category_id = c.category_id
+        WHERE c.name LIKE ?
+        ORDER BY f.title ASC
+      `,
+        [term],
+      );
     } else {
-      // Search by title (default)
-      films = database
-        .prepare(
-          `SELECT * FROM films 
-           WHERE title LIKE ?
-           ORDER BY title ASC`
-        )
-        .all(searchTerm) as Film[];
+      [films] = await pool.query(
+        `
+        SELECT DISTINCT f.film_id, f.title, f.description, f.release_year,
+          f.rental_rate, f.length, f.rating, c.name AS category
+        FROM film f
+        LEFT JOIN film_category fc ON f.film_id = fc.film_id
+        LEFT JOIN category c ON fc.category_id = c.category_id
+        WHERE f.title LIKE ?
+        ORDER BY f.title ASC
+      `,
+        [term],
+      );
     }
 
-    res.json({
-      success: true,
-      data: films
-    });
+    res.json({ success: true, data: (films as any[]).map(parseFilm) });
   } catch (error) {
     next(error);
   }
 };
 
-// Get film details with actors
+// GET /api/films/:id
 export const getFilmById = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const database = db.getDatabase();
 
-    // Get film
-    const film = database
-      .prepare('SELECT * FROM films WHERE film_id = ?')
-      .get(id) as Film | undefined;
+    const [rows] = (await pool.query(
+      `
+  SELECT 
+    f.*,
+    c.name AS category,
+    l.name AS language,
+     
+    COUNT(DISTINCT r.rental_id) AS rental_count,
+    (SELECT COUNT(*) FROM inventory i2 WHERE i2.film_id = f.film_id) AS total_copies,
+    (SELECT COUNT(*) FROM inventory i3
+      JOIN rental r2 ON i3.inventory_id = r2.inventory_id
+      WHERE i3.film_id = f.film_id AND r2.return_date IS NULL) AS rented_copies,
+    (SELECT COUNT(*) FROM inventory i4 WHERE i4.film_id = f.film_id) -
+    (SELECT COUNT(*) FROM inventory i5
+      JOIN rental r3 ON i5.inventory_id = r3.inventory_id
+      WHERE i5.film_id = f.film_id AND r3.return_date IS NULL) AS available_copies
+  FROM film f
+  LEFT JOIN film_category fc ON f.film_id = fc.film_id
+  LEFT JOIN category c ON fc.category_id = c.category_id
+  LEFT JOIN language l ON f.language_id = l.language_id
+  LEFT JOIN inventory i ON f.film_id = i.film_id
+  LEFT JOIN rental r ON i.inventory_id = r.inventory_id
+  WHERE f.film_id = ?
+  GROUP BY f.film_id
+`,
+      [id],
+    )) as any[];
 
-    if (!film) {
-      res.status(404).json({ success: false, error: 'Film not found' });
+    if (!rows[0]) {
+      res.status(404).json({ success: false, error: "Film not found" });
       return;
     }
 
-    // Get actors for this film
-    const actors = database
-      .prepare(
-        `SELECT a.* FROM actors a
-         JOIN film_actor fa ON a.actor_id = fa.actor_id
-         WHERE fa.film_id = ?`
-      )
-      .all(id) as Actor[];
+    const [actors] = await pool.query(
+      `
+      SELECT a.actor_id, a.first_name, a.last_name
+      FROM actor a
+      JOIN film_actor fa ON a.actor_id = fa.actor_id
+      WHERE fa.film_id = ?
+      ORDER BY a.last_name, a.first_name
+    `,
+      [id],
+    );
 
-    res.json({
-      success: true,
-      data: {
-        ...film,
-        actors
-      }
-    });
+    res.json({ success: true, data: { ...parseFilm(rows[0]), actors } });
   } catch (error) {
     next(error);
   }
 };
 
-// Rent a film to a customer
+// POST /api/films/:id/rent
 export const rentFilm = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
-    const { customer_id, film_id } = req.body;
+    const { id } = req.params;
+    const { customer_id, staff_id = 1, store_id = 1 } = req.body;
 
-    if (!customer_id || !film_id) {
-      res.status(400).json({ 
-        success: false, 
-        error: 'customer_id and film_id are required' 
+    if (!customer_id) {
+      res
+        .status(400)
+        .json({ success: false, error: "customer_id es requerido" });
+      return;
+    }
+
+    const [customer] = (await pool.query(
+      "SELECT customer_id FROM customer WHERE customer_id = ?",
+      [customer_id],
+    )) as any[];
+    if (!customer[0]) {
+      res.status(404).json({ success: false, error: "Cliente no encontrado" });
+      return;
+    }
+
+    const [available] = (await pool.query(
+      `
+      SELECT i.inventory_id FROM inventory i
+      WHERE i.film_id = ? AND i.store_id = ?
+        AND i.inventory_id NOT IN (
+          SELECT inventory_id FROM rental WHERE return_date IS NULL
+        )
+      LIMIT 1
+    `,
+      [id, store_id],
+    )) as any[];
+
+    if (!available[0]) {
+      res.status(409).json({ success: false, error: "No available copies" });
+      return;
+    }
+
+    const [film] = (await pool.query(
+      "SELECT rental_rate FROM film WHERE film_id = ?",
+      [id],
+    )) as any[];
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [result] = (await conn.query(
+        `
+        INSERT INTO rental (rental_date, inventory_id, customer_id, staff_id)
+        VALUES (NOW(), ?, ?, ?)
+      `,
+        [available[0].inventory_id, customer_id, staff_id],
+      )) as any;
+
+      await conn.query(
+        `
+        INSERT INTO payment (customer_id, staff_id, rental_id, amount, payment_date)
+        VALUES (?, ?, ?, ?, NOW())
+      `,
+        [customer_id, staff_id, result.insertId, film[0].rental_rate],
+      );
+
+      await conn.commit();
+      res.status(201).json({
+        success: true,
+        message: "Película rentada exitosamente",
+        data: { rental_id: result.insertId },
       });
-      return;
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
     }
-
-    const database = db.getDatabase();
-
-    // Check if film exists and has available copies
-    const film = database
-      .prepare('SELECT * FROM films WHERE film_id = ?')
-      .get(film_id) as Film | undefined;
-
-    if (!film) {
-      res.status(404).json({ success: false, error: 'Film not found' });
-      return;
-    }
-
-    if (!film.available_copies || film.available_copies <= 0) {
-      res.status(400).json({ success: false, error: 'No copies available' });
-      return;
-    }
-
-    // Check if customer exists
-    const customer = database
-      .prepare('SELECT * FROM customers WHERE customer_id = ?')
-      .get(customer_id);
-
-    if (!customer) {
-      res.status(404).json({ success: false, error: 'Customer not found' });
-      return;
-    }
-
-    // Create rental
-    const result = database
-      .prepare(
-        `INSERT INTO rentals (customer_id, film_id, status) 
-         VALUES (?, ?, 'rented')`
-      )
-      .run(customer_id, film_id);
-
-    // Update film: decrease available copies, increase rental count
-    database
-      .prepare(
-        `UPDATE films 
-         SET available_copies = available_copies - 1,
-             rental_count = rental_count + 1
-         WHERE film_id = ?`
-      )
-      .run(film_id);
-
-    // Get the created rental
-    const rental = database
-      .prepare('SELECT * FROM rentals WHERE rental_id = ?')
-      .get(result.lastInsertRowid);
-
-    res.status(201).json({
-      success: true,
-      message: 'Film rented successfully',
-      data: rental
-    });
   } catch (error) {
     next(error);
   }

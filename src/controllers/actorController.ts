@@ -1,60 +1,99 @@
 import { Request, Response, NextFunction } from 'express';
-import db from '../config/database.js';
-import { Actor, Film } from '../types/index.js';
+import { pool } from '../config/database.js';
+import { getActorPhoto } from '../services/tmdbService.js';
 
-// Get top 5 actors that are part of films in the store
+const defaultImage = "https://t4.ftcdn.net/jpg/07/92/82/33/360_F_792823313_HKek1ZiUoCW06zaITnIkKymOJGw7tIue.jpg";
+// GET /api/actors/top5
 export const getTopActors = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const database = db.getDatabase();
-    
-    const topActors = database
-      .prepare(
-        `SELECT a.*, SUM(f.rental_count) as total_rentals
-         FROM actors a
-         JOIN film_actor fa ON a.actor_id = fa.actor_id
-         JOIN films f ON fa.film_id = f.film_id
-         GROUP BY a.actor_id
-         ORDER BY total_rentals DESC
-         LIMIT 5`
-      )
-      .all() as (Actor & { total_rentals: number })[];
+    const [rows] = await pool.query(`
+      SELECT 
+        a.actor_id,
+        a.first_name,
+        a.last_name,
+        COUNT(DISTINCT fa.film_id) AS film_count,
+        COUNT(DISTINCT r.rental_id) AS total_rentals
+      FROM actor a
+      JOIN film_actor fa ON a.actor_id = fa.actor_id
+      JOIN inventory i ON fa.film_id = i.film_id
+      JOIN rental r ON i.inventory_id = r.inventory_id
+      GROUP BY a.actor_id
+      ORDER BY total_rentals DESC
+      LIMIT 5
+    `);
 
-    res.json({
-      success: true,
-      data: topActors
-    });
+    const actorsWithImages = await Promise.all(
+      (rows as any[]).map(async (actor) => {
+        let imageUrl: string | null = null;
+
+        try {
+          imageUrl = await getActorPhoto(actor.first_name, actor.last_name);
+        } catch (err) {
+          console.error("TMDB error:", err);
+        }
+
+        return {
+          ...actor,
+          image_url:
+            imageUrl ??
+            defaultImage,
+        };
+      })
+    );
+
+    res.json({ success: true, data: actorsWithImages });
+
   } catch (error) {
     next(error);
   }
 };
 
-// Get all actors
+
+// GET /api/actors
 export const getAllActors = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const database = db.getDatabase();
-    
-    const actors = database
-      .prepare('SELECT * FROM actors ORDER BY last_name, first_name ASC')
-      .all() as Actor[];
+    const [rows] = await pool.query(`
+      SELECT actor_id, first_name, last_name
+      FROM actor
+      ORDER BY last_name, first_name ASC
+    `);
 
-    res.json({
-      success: true,
-      data: actors
-    });
+    const actorsWithImages = await Promise.all(
+      (rows as any[]).map(async (actor) => {
+        let imageUrl: string | null = null;
+
+        try {
+          imageUrl = await getActorPhoto(actor.first_name, actor.last_name);
+        } catch (err) {
+          console.error("TMDB error:", err);
+        }
+
+        return {
+          ...actor,
+          image_url:
+            imageUrl ??
+            defaultImage,
+        };
+      })
+    );
+
+    res.json({ success: true, data: actorsWithImages });
+
   } catch (error) {
     next(error);
   }
 };
 
-// Get actor details with their top 5 rented films
+
+// GET /api/actors/:id
 export const getActorById = async (
   req: Request,
   res: Response,
@@ -62,42 +101,108 @@ export const getActorById = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const database = db.getDatabase();
+ 
+    const [actors] = await pool.query(
+      `
+      SELECT 
+        a.actor_id,
+        a.first_name,
+        a.last_name,
+        COUNT(DISTINCT fa.film_id) AS film_count,
+        COUNT(DISTINCT r.rental_id) AS total_rentals
+      FROM actor a
+      LEFT JOIN film_actor fa ON a.actor_id = fa.actor_id
+      LEFT JOIN inventory i ON fa.film_id = i.film_id
+      LEFT JOIN rental r ON i.inventory_id = r.inventory_id
+      WHERE a.actor_id = ?
+      GROUP BY a.actor_id
+    `,
+      [id]
+    ) as any[];
 
-    // Get actor
-    const actor = database
-      .prepare('SELECT * FROM actors WHERE actor_id = ?')
-      .get(id) as Actor | undefined;
-
-    if (!actor) {
-      res.status(404).json({ success: false, error: 'Actor not found' });
+    if (!actors[0]) {
+      res.status(404).json({ success: false, error: "Actor not found" });
       return;
     }
 
-    // Get top 5 rented films for this actor
-    const topFilms = database
-      .prepare(
-        `SELECT f.* FROM films f
-         JOIN film_actor fa ON f.film_id = fa.film_id
-         WHERE fa.actor_id = ?
-         ORDER BY f.rental_count DESC
-         LIMIT 5`
-      )
-      .all(id) as Film[];
+    const actor = actors[0];
+
+   
+    const [films] = await pool.query(
+      `
+      SELECT 
+        f.film_id,
+        f.title,
+        f.release_year,
+        COUNT(r.rental_id) AS rental_count
+      FROM film_actor fa
+      JOIN film f ON fa.film_id = f.film_id
+      LEFT JOIN inventory i ON f.film_id = i.film_id
+      LEFT JOIN rental r ON i.inventory_id = r.inventory_id
+      WHERE fa.actor_id = ?
+      GROUP BY f.film_id
+      ORDER BY rental_count DESC
+      LIMIT 5
+    `,
+      [id]
+    ) as any[];
+
+     
+
+    const filmsWithImages = await Promise.all(
+      films.map(async (film: any) => {
+        let imageUrl: string | null = null;
+
+        try {
+          imageUrl = await getFilmPoster(
+            film.title,
+            film.release_year
+          );
+        } catch (err) {
+          console.error("TMDB film error:", err);
+        }
+
+        return {
+          ...film,
+          image_url:
+            imageUrl ??
+            defaultImage,
+        };
+      })
+    );
+ 
+    let actorImage: string | null = null;
+
+    try {
+      actorImage = await getActorPhoto(
+        actor.first_name,
+        actor.last_name
+      );
+    } catch (err) {
+      console.error("TMDB actor error:", err);
+    }
+
+    
 
     res.json({
       success: true,
       data: {
         ...actor,
-        top_films: topFilms
-      }
+        image_url:
+          actorImage ??
+          defaultImage,
+        top_films: filmsWithImages,
+      },
     });
+
   } catch (error) {
     next(error);
   }
 };
 
-// Get all films for an actor
+
+
+// GET /api/actors/:id/films
 export const getActorFilms = async (
   req: Request,
   res: Response,
@@ -105,32 +210,46 @@ export const getActorFilms = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const database = db.getDatabase();
 
-    // Check if actor exists
-    const actor = database
-      .prepare('SELECT * FROM actors WHERE actor_id = ?')
-      .get(id);
+    const [films] = await pool.query(`
+      SELECT 
+        f.film_id,
+        f.title,
+        f.description,
+        f.release_year,
+        f.rating,
+        f.rental_rate,
+        f.length,
+        c.name AS category
+      FROM film f
+      JOIN film_actor fa ON f.film_id = fa.film_id
+      LEFT JOIN film_category fc ON f.film_id = fc.film_id
+      LEFT JOIN category c ON fc.category_id = c.category_id
+      WHERE fa.actor_id = ?
+      ORDER BY f.title ASC
+    `, [id]);
 
-    if (!actor) {
-      res.status(404).json({ success: false, error: 'Actor not found' });
-      return;
-    }
+    const filmsWithImages = await Promise.all(
+      (films as any[]).map(async (film) => {
+        let imageUrl: string | null = null;
 
-    // Get all films for this actor
-    const films = database
-      .prepare(
-        `SELECT f.* FROM films f
-         JOIN film_actor fa ON f.film_id = fa.film_id
-         WHERE fa.actor_id = ?
-         ORDER BY f.title ASC`
-      )
-      .all(id) as Film[];
+        try {
+          imageUrl = await getFilmPoster(film.title, film.release_year);
+        } catch (err) {
+          console.error("TMDB error:", err);
+        }
 
-    res.json({
-      success: true,
-      data: films
-    });
+        return {
+          ...film,
+          image_url:
+            imageUrl ??
+            "https://via.placeholder.com/300x300/1f2937/ffffff?text=No+Image",
+        };
+      })
+    );
+
+    res.json({ success: true, data: filmsWithImages });
+
   } catch (error) {
     next(error);
   }

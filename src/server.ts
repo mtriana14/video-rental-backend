@@ -1,7 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import db from './config/database.js';
+import db, { connect } from './config/database.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
 // Import routes
@@ -45,10 +45,9 @@ app.use(errorHandler);
 // Start server
 const startServer = async (): Promise<void> => {
   try {
-    db.connect();
+    await connect();
     app.listen(PORT, () => {
       console.log(` Server running on http://localhost:${PORT}`);
-      console.log(` Environment: ${process.env.NODE_ENV}`);
     });
   } catch (error) {
     console.error('Error starting server:', error);
